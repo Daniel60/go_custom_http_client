@@ -1,8 +1,9 @@
-package main
+package logger
 
 import (
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -16,25 +17,7 @@ var (
 	LOG_LEVEL  = "LOG_LEVEL"
 )
 
-func IgnoreHealthCheckLogging() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if c.Request.URL.Path == "/v1/health" {
-			// Ignorar a rota de health check
-			c.Next()
-			return
-		}
-		// Registrar todas as outras rotas
-		c.Next()
-		log.Info("Request",
-			zap.String("method", c.Request.Method),
-			zap.String("path", c.Request.URL.Path),
-			zap.Int("status", c.Writer.Status()),
-			zap.String("client_ip", c.ClientIP()),
-		)
-	}
-}
-
-func GetLogger() {
+func init() {
 	logConfig := zap.Config{
 		OutputPaths: []string{getOutputLogs()},
 		Level:       zap.NewAtomicLevelAt(getLevelLogs()),
@@ -79,5 +62,38 @@ func getLevelLogs() zapcore.Level {
 		return zap.ErrorLevel
 	default:
 		return zap.InfoLevel
+	}
+}
+
+func CustomGinLogger() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		path := c.Request.URL.Path
+		raw := c.Request.URL.RawQuery
+
+		c.Next()
+
+		end := time.Now()
+		latency := end.Sub(start)
+		clientIP := c.ClientIP()
+		method := c.Request.Method
+		statusCode := c.Writer.Status()
+		errorMessage := c.Errors.ByType(gin.ErrorTypePrivate).String()
+
+		if raw != "" {
+			path = path + "?" + raw
+		}
+		fields := []zap.Field{
+			zap.String("client_ip", clientIP),
+			zap.String("method", method),
+			zap.String("path", path),
+			zap.Int("status", statusCode),
+			zap.Duration("latency", latency),
+		}
+
+		if errorMessage != "" {
+			fields = append(fields, zap.String("error", errorMessage))
+		}
+		log.Info("Request", fields...)
 	}
 }
