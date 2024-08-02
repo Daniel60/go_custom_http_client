@@ -34,5 +34,11 @@ func main() {
 		})
 	})
 
+	g.NoRoute(func(c *gin.Context) {
+		c.JSON(404, gin.H{
+			"code":    "PATH_NOT_FOUND",
+			"message": "Path not Found",
+		})
+	})
 	g.Run(":8080")
 }

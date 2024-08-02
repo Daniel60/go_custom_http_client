@@ -84,6 +84,7 @@ func CustomGinLogger() gin.HandlerFunc {
 			path = path + "?" + raw
 		}
 		fields := []zap.Field{
+			zap.String("result", "success"),
 			zap.String("client_ip", clientIP),
 			zap.String("method", method),
 			zap.String("path", path),
