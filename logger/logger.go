@@ -1,6 +1,8 @@
 package logger
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"strings"
 	"time"
@@ -71,6 +73,14 @@ func CustomGinLogger() gin.HandlerFunc {
 		path := c.Request.URL.Path
 		raw := c.Request.URL.RawQuery
 
+		requestHeaders := make(map[string]string)
+		for key, values := range c.Request.Header {
+			requestHeaders[key] = strings.Join(values, ", ")
+		}
+
+		responseBody := &bodyLogWriter{body: bytes.NewBufferString(""), ResponseWriter: c.Writer}
+		c.Writer = responseBody
+
 		c.Next()
 
 		end := time.Now()
@@ -83,6 +93,16 @@ func CustomGinLogger() gin.HandlerFunc {
 		if raw != "" {
 			path = path + "?" + raw
 		}
+
+		var responseBodyMap map[string]interface{}
+		responseBodyString := responseBody.body.String()
+		if err := json.Unmarshal([]byte(responseBodyString), &responseBodyMap); err != nil {
+			// Se não for possível converter, loga como string
+			responseBodyMap = map[string]interface{}{
+				"raw_response": responseBodyString,
+			}
+		}
+
 		fields := []zap.Field{
 			zap.String("result", "success"),
 			zap.String("client_ip", clientIP),
@@ -90,6 +110,11 @@ func CustomGinLogger() gin.HandlerFunc {
 			zap.String("path", path),
 			zap.Int("status", statusCode),
 			zap.Duration("latency", latency),
+			zap.Any("response_body", responseBodyMap),
+		}
+
+		for key, value := range requestHeaders {
+			fields = append(fields, zap.String("request_header_"+key, value))
 		}
 
 		if errorMessage != "" {
@@ -97,4 +122,14 @@ func CustomGinLogger() gin.HandlerFunc {
 		}
 		log.Info("Request", fields...)
 	}
+}
+
+type bodyLogWriter struct {
+	gin.ResponseWriter
+	body *bytes.Buffer
+}
+
+func (w bodyLogWriter) Write(b []byte) (int, error) {
+	w.body.Write(b)
+	return w.ResponseWriter.Write(b)
 }
