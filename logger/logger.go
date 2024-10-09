@@ -13,10 +13,10 @@ import (
 )
 
 var (
-	log *zap.Logger
-
-	LOG_OUTPUT = "LOG_OUTPUT"
-	LOG_LEVEL  = "LOG_LEVEL"
+	log         *zap.Logger
+	LOG_OUTPUT  = "LOG_OUTPUT"
+	LOG_LEVEL   = "LOG_LEVEL"
+	wordsToMask = []string{"password", "secret", "token"} // Constante com as palavras a serem mascaradas
 )
 
 func init() {
@@ -47,7 +47,6 @@ func getOutputLogs() string {
 	if output == "" {
 		return "stdout"
 	}
-
 	return output
 }
 
@@ -67,20 +66,37 @@ func getLevelLogs() zapcore.Level {
 	}
 }
 
+// Função para mascarar palavras sensíveis nos headers
+func maskSensitiveWords(headers map[string]string, wordsToMask []string) map[string]string {
+	maskedHeaders := make(map[string]string)
+	for key, value := range headers {
+		for _, word := range wordsToMask {
+			if strings.Contains(value, word) {
+				value = strings.ReplaceAll(value, word, "***MASKED***")
+			}
+		}
+		maskedHeaders[key] = value
+	}
+	return maskedHeaders
+}
+
 func CustomGinLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path
 		raw := c.Request.URL.RawQuery
 
+		// Coletar os headers da requisição
 		requestHeaders := make(map[string]string)
 		for key, values := range c.Request.Header {
 			requestHeaders[key] = strings.Join(values, ", ")
 		}
 
+		// Mascarar palavras sensíveis nos headers
+		maskedHeaders := maskSensitiveWords(requestHeaders, wordsToMask)
+
 		responseBody := &bodyLogWriter{body: bytes.NewBufferString(""), ResponseWriter: c.Writer}
 		c.Writer = responseBody
-
 		c.Next()
 
 		end := time.Now()
@@ -110,7 +126,7 @@ func CustomGinLogger() gin.HandlerFunc {
 			zap.String("path", path),
 			zap.Int("status", statusCode),
 			zap.Int64("latency_ms", latency),
-			zap.Any("client_request_headers", requestHeaders),
+			zap.Any("client_request_headers", maskedHeaders), // Usar os headers mascarados
 			zap.Any("response_body", responseBodyMap),
 		}
 
@@ -121,6 +137,7 @@ func CustomGinLogger() gin.HandlerFunc {
 		if errorMessage != "" {
 			fields = append(fields, zap.String("error", errorMessage))
 		}
+
 		log.Info("Request", fields...)
 	}
 }
