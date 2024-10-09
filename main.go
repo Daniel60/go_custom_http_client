@@ -55,6 +55,7 @@ func main() {
 		// Adicionar headers à requisição
 		req.Header.Add("X-Random-Header", randomHeader)
 		req.Header.Add("X-Intermediario", "intermediario")
+		req.Header.Add("Authorization", "Bearer 1234567890234567890")
 
 		ctx.Set("external_request_headers", req.Header)
 

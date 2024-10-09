@@ -3,6 +3,7 @@ package logger
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -16,7 +17,7 @@ var (
 	log         *zap.Logger
 	LOG_OUTPUT  = "LOG_OUTPUT"
 	LOG_LEVEL   = "LOG_LEVEL"
-	wordsToMask = []string{"password", "secret", "token"} // Constante com as palavras a serem mascaradas
+	wordsToMask = []string{"password", "secret", "token", "Authorization"} // Constante com as palavras a serem mascaradas
 )
 
 func init() {
@@ -66,13 +67,16 @@ func getLevelLogs() zapcore.Level {
 	}
 }
 
-// Função para mascarar palavras sensíveis nos headers
+// Função para mascarar palavras sensíveis nas chaves dos headers
 func maskSensitiveWords(headers map[string]string, wordsToMask []string) map[string]string {
 	maskedHeaders := make(map[string]string)
 	for key, value := range headers {
+		// Verifica se a chave contém alguma palavra sensível
 		for _, word := range wordsToMask {
-			if strings.Contains(value, word) {
-				value = strings.ReplaceAll(value, word, "***MASKED***")
+			if strings.Contains(key, word) {
+				// Se a chave contiver a palavra sensível, mascara o valor
+				value = "***MASKED***"
+				break
 			}
 		}
 		maskedHeaders[key] = value
@@ -130,8 +134,12 @@ func CustomGinLogger() gin.HandlerFunc {
 			zap.Any("response_body", responseBodyMap),
 		}
 
-		if c.MustGet("external_request_headers") != "" {
-			fields = append(fields, zap.Any("external_request_headers", c.MustGet("external_request_headers")))
+		if reqHeaders, exists := c.Get("external_request_headers"); exists {
+			apiHeaders := make(map[string]string)
+			for k, v := range reqHeaders.(http.Header) {
+				apiHeaders[k] = strings.Join(v, ", ")
+			}
+			fields = append(fields, zap.Any("external_request_headers", maskSensitiveWords(apiHeaders, wordsToMask)))
 		}
 
 		if errorMessage != "" {
