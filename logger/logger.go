@@ -110,8 +110,12 @@ func CustomGinLogger() gin.HandlerFunc {
 			zap.String("path", path),
 			zap.Int("status", statusCode),
 			zap.Duration("latency", latency),
-			zap.Any("request_header", requestHeaders),
+			zap.Any("client_request_headers", requestHeaders),
 			zap.Any("response_body", responseBodyMap),
+		}
+
+		if c.MustGet("external_request_headers") != "" {
+			fields = append(fields, zap.Any("external_request_headers", c.MustGet("external_request_headers")))
 		}
 
 		if errorMessage != "" {

@@ -1,9 +1,8 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/Daniel60/go_custom_http_client/logger"
@@ -57,6 +56,8 @@ func main() {
 		req.Header.Add("X-Random-Header", randomHeader)
 		req.Header.Add("X-Intermediario", "intermediario")
 
+		ctx.Set("external_request_headers", req.Header)
+
 		// Fazer a requisição para a API externa
 		client := &http.Client{}
 		resp, err := client.Do(req)
@@ -68,31 +69,24 @@ func main() {
 		}
 		defer resp.Body.Close()
 
-		// Ler a resposta da API externa
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		// Copiar os cabeçalhos da resposta externa para a resposta do cliente
+		for key, values := range resp.Header {
+			for _, value := range values {
+				ctx.Writer.Header().Add(key, value)
+			}
+		}
+
+		// Definir o status code da resposta externa
+		ctx.Status(resp.StatusCode)
+
+		// Copiar o corpo da resposta externa diretamente para o cliente
+		_, err = io.Copy(ctx.Writer, resp.Body)
 		if err != nil {
 			ctx.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to read external API response",
+				"error": "Failed to copy external API response",
 			})
 			return
 		}
-
-		// Converter a resposta para um mapa
-		var responseBody map[string]interface{}
-		if err := json.Unmarshal(bodyBytes, &responseBody); err != nil {
-			ctx.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to parse external API response",
-			})
-			return
-		}
-
-		// Retornar a resposta da API externa junto com os headers adicionados
-		ctx.JSON(http.StatusOK, gin.H{
-			"message":       "sups",
-			"external_api":  responseBody,
-			"random_header": randomHeader,
-			"intermediario": "intermediario",
-		})
 	})
 
 	g.NoRoute(func(c *gin.Context) {
