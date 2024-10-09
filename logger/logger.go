@@ -110,11 +110,8 @@ func CustomGinLogger() gin.HandlerFunc {
 			zap.String("path", path),
 			zap.Int("status", statusCode),
 			zap.Duration("latency", latency),
+			zap.Any("request_header", requestHeaders),
 			zap.Any("response_body", responseBodyMap),
-		}
-
-		for key, value := range requestHeaders {
-			fields = append(fields, zap.String("request_header_"+key, value))
 		}
 
 		if errorMessage != "" {
