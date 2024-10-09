@@ -84,7 +84,7 @@ func CustomGinLogger() gin.HandlerFunc {
 		c.Next()
 
 		end := time.Now()
-		latency := end.Sub(start)
+		latency := end.Sub(start).Milliseconds()
 		clientIP := c.ClientIP()
 		method := c.Request.Method
 		statusCode := c.Writer.Status()
@@ -109,7 +109,7 @@ func CustomGinLogger() gin.HandlerFunc {
 			zap.String("method", method),
 			zap.String("path", path),
 			zap.Int("status", statusCode),
-			zap.Duration("latency", latency),
+			zap.Int64("latency_ms", latency),
 			zap.Any("client_request_headers", requestHeaders),
 			zap.Any("response_body", responseBodyMap),
 		}
